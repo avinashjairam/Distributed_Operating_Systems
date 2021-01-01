@@ -34,12 +34,13 @@ def decode(msg):
 def begin(_id, topology):
     port = topology[_id]['port']
     host = topology[_id]['host']
-
+    
+    start_msg = {'type': 'start'}
 
     #send a start message to start the exchange of messages
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))
-    s.sendall(bytes('start', 'utf-8'))
+    s.sendall(encode(start_msg))
 
     
     

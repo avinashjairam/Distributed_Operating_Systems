@@ -7,7 +7,7 @@ from utilities import *
 
 #incoming and outgoing queue are managed by other threads. 
 
-
+#RESPONSIBILITIES: process messages
 class Node(threading.Thread):
 
     def __init__(self, _id, edges, 
@@ -42,9 +42,10 @@ class Node(threading.Thread):
         while True: 
             if not self.in_queue.empty():
                 msg = self.in_queue.get()
-                if msg == 'start':
+                if msg['type'] == 'start':
                     print('here')
                     for edge in edges:
+                        #constrct a message that will determine if neighbors are alive
                         msg = msg_mngr.package_msg('alive', edge)
                         #send a message to node 2
                         #see if a neighboring node has failed
@@ -98,8 +99,9 @@ class Msg_Manager():
         port = self.topology[self.id]['port']
         host = self.topology[self.id]['host']
     
+    #start, alive, fail, reconfig
     def package_msg(self, msg_type, to_id):
-        # message is packaged with a type and the sender's id, host, and port
+        # message is packaged with a type and the sender's id, host, and port; json string
         msg = {'type': msg_type, 'to_id': to_id, 'from_id':self.id, 'host': host, 'port': port}
         return msg
 
@@ -124,17 +126,21 @@ class Incoming_Msg_Cntrll(threading.Thread):
 
     #get a message and put it into the queue.
     def run(self):
-        #while True:
+        while True:
 
-        #establish the connection with the client seeking to send info
-        c, addr = self.in_socket.accept()
-        message = c.recv(1024).decode()
+            #establish the connection with the client seeking to send info
+            c, addr = self.in_socket.accept()
+            #message = c.recv(1024).decode() 
 
-        #FOR TESTING
-        if message == 'start':
-            print('got it!')
-            self.in_q.put(message) 
+            #should receive a json string to decode
+            message = decode(c.recv(1024))
 
+            #FOR TESTING
+            if message['type'] == 'start':
+                print('got it!')
+                self.in_q.put(message) 
+            else:
+                self.in_q.put(message)
 
 
 #MESSGES: types, ports, host (destinations)
@@ -159,15 +165,16 @@ class Outgoing_Msg_Cntrll(threading.Thread):
         self.socket = None
 
     def run(self):
+        while True:
         #check if there are messages to send
-        if not self.out_queue.empty():
-            msg = self.out_queue.get()
-            self.socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            to_id = msg['to_id']
-            port = self.topolgy[to_id]['port']
-            host = self.topology[to_id]['host']
-            self.socket.connect((host, port))
-            self.socket.send(msg)
+            if not self.out_queue.empty():
+                msg = self.out_queue.get()
+                self.socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                to_id = msg['to_id']
+                port = self.topology[to_id]['port']
+                host = self.topology[to_id]['host']
+                self.socket.connect((host, port))
+                self.socket.send(encode(msg))
 
 
 

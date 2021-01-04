@@ -6,6 +6,7 @@ import argparse
 def opt_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--id', default=15, type=int)
+    parser.add_argument('--failed', default=15, type=int)
     parser.add_argument('--topology', default='./ntwk_config.json', type=str)
     return parser
 
@@ -31,16 +32,18 @@ def decode(msg):
     answer = json.loads(msg.decode('utf-8'))
     return answer
 
-def begin(_id, topology):
-    port = topology[_id]['port']
-    host = topology[_id]['host']
+def begin(_id,failed,topology):
+    for node in range(_id):
+        if node != failed:
+            port = topology[node+1]['port']
+            host = topology[node+1]['host']
     
-    start_msg = {'type': 'start'}
+            start_msg = {'type': 'start'}
 
-    #send a start message to start the exchange of messages
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
-    s.sendall(encode(start_msg))
+            #send a start message to start the exchange of messages
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((host, port))
+            s.sendall(encode(start_msg))
 
     
     

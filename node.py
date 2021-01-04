@@ -38,24 +38,28 @@ class Node(threading.Thread):
         self.in_queue = incoming_queue
         self.msg_mngr = message_manager
 
+    #Defines the logic of the program
     def run(self):
         while True: 
             if not self.in_queue.empty():
                 msg = self.in_queue.get()
                 if msg['type'] == 'start':
-                    print('here')
                     for edge in edges:
-                        #constrct a message that will determine if neighbors are alive
-                        msg = msg_mngr.package_msg('alive', edge)
                         #send a message to node 2
                         #see if a neighboring node has failed
+                        msg = msg_mngr.package_msg('alive', edge)
                         self.msg_mngr.send_msg(msg)
                 if msg['type'] == 'alive':
                     print(self._id, 'received')
+                if msg['type'] == 'fail':
+                    print(msg['to_id'], 'failed')
                 
 
-
+    
+    
     #def assign_edge(self):
+    
+    #GET_PORT in the paper
     def set_of_communication_ports(self):
         ports = []
         for edge in self.edges:
@@ -79,11 +83,16 @@ class Node(threading.Thread):
     def port_to(self, s_j):
         return self.topology[s_j]['port']
 
-    #sender_of(self):
+    #INCORRECT; NEEDS REVISION
+    #reconfig_node_id = port through which the reconfig message came through
+    def sender_of(self, reconfig_node_id):
+        return self.port_to(reconfig_node_id)
 
     #remove_edge(self):
 
-    #reconfig(self):
+    #reconfig(self, node_list, frag_id):
+        #node_list is a FIFO queue
+        
 
 
 #msg_manager will send and package messages on behalf of the node
@@ -99,7 +108,7 @@ class Msg_Manager():
         port = self.topology[self.id]['port']
         host = self.topology[self.id]['host']
     
-    #start, alive, fail, reconfig
+    #start, alive, fail, reconfig, no_contension, accepted
     def package_msg(self, msg_type, to_id):
         # message is packaged with a type and the sender's id, host, and port; json string
         msg = {'type': msg_type, 'to_id': to_id, 'from_id':self.id, 'host': host, 'port': port}
@@ -137,7 +146,7 @@ class Incoming_Msg_Cntrll(threading.Thread):
 
             #FOR TESTING
             if message['type'] == 'start':
-                print('got it!')
+                print('Starting!')
                 self.in_q.put(message) 
             else:
                 self.in_q.put(message)
@@ -151,7 +160,14 @@ class Incoming_Msg_Cntrll(threading.Thread):
 # messages to forward
 class Outgoing_Msg_Cntrll(threading.Thread):
 
-    def __init__(self, incoming_queue, outgoing_queue, port, host, ntwrk_cnfg):
+    def __init__(self, 
+                incoming_queue, 
+                outgoing_queue, 
+                port, 
+                host, 
+                ntwrk_cnfg, 
+                msg_cm):
+
         super().__init__()
 
         self.in_queue = incoming_queue
@@ -163,6 +179,7 @@ class Outgoing_Msg_Cntrll(threading.Thread):
 
         #socket object to send messages
         self.socket = None
+        self.msg_cm = msg_cm
 
     def run(self):
         while True:
@@ -173,8 +190,13 @@ class Outgoing_Msg_Cntrll(threading.Thread):
                 to_id = msg['to_id']
                 port = self.topology[to_id]['port']
                 host = self.topology[to_id]['host']
-                self.socket.connect((host, port))
-                self.socket.send(encode(msg))
+                try: 
+                    self.socket.connect((host, port))
+                    self.socket.send(encode(msg))
+                except socket.error:
+                    #couldn't connect; node failure dectected
+                    msg = self.msg_cm.package_msg('fail', to_id)
+                    self.in_queue.put(msg)
 
 
 
@@ -205,9 +227,10 @@ if __name__ == '__main__':
 
     #initialize the node with its host, links and edges
     #intialize the helper threads
-    in_msg_cntrll = Incoming_Msg_Cntrll(incoming_queue, port, host)
-    out_msg_cntrll = Outgoing_Msg_Cntrll(incoming_queue, outgoing_queue, port,host, ntwrk_cnfg)
     msg_mngr = Msg_Manager(_id, incoming_queue, outgoing_queue, ntwrk_cnfg)
+    in_msg_cntrll = Incoming_Msg_Cntrll(incoming_queue, port, host)
+    out_msg_cntrll = Outgoing_Msg_Cntrll(incoming_queue, outgoing_queue, 
+                                            port,host, ntwrk_cnfg, msg_mngr)
     node = Node(_id,edges,links, ntwrk_cnfg, incoming_queue, msg_mngr)
 
     #send a message between (two) three nodes

@@ -8,4 +8,4 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     ntwrk_cnfg = load_network_topology(options.topology)
-    begin(options.id, ntwrk_cnfg)
+    begin(options.id, options.failed, ntwrk_cnfg)

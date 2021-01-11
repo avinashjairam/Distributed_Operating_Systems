@@ -1,6 +1,7 @@
 import threading
 import socket
 import queue
+import sys 
 
 from utilities import *
 
@@ -98,9 +99,9 @@ class Node(threading.Thread):
                         self.all_nodes_responde()
 
                 if msg['type'] == 'stop':
-                    sender_id = int(msg['from_id'])
+                    e_id = int(msg['from_id'])
                     frag_id = msg['frag_id']
-                    e = self.sender_of(sender_id)
+                    e = self.sender_of(e_id)
                     if frag_id > self.coord_so_far:
                         self.coord_so_far = frag_id
                         if self.port_to_coord is not None:
@@ -112,6 +113,7 @@ class Node(threading.Thread):
                         if self.port_to_coord not in self.set_of_communication_ports():
                             if self.port_to_coord is not None:
                                 # Send a 'no_contention' msg through port_to_coord
+                                print('here e_id is', e_id )
                                 new_msg = self.msg_mngr.package_msg('no_contention', e_id, None, None, None)
                                 self.msg_mngr.send_msg(new_msg)
                             self.recd_reply[self.port_to_coord] = 'no_contention'
@@ -143,7 +145,6 @@ class Node(threading.Thread):
     def assign_edge(self, to_id):
         self.edges.append(to_id)
 
-    
     #GET_PORT in the paper
     def set_of_communication_ports(self):
         ports = []
@@ -173,7 +174,7 @@ class Node(threading.Thread):
     def sender_of(self, reconfig_node_id):
         return self.port_to(reconfig_node_id)
 
-    #remove_edge(self):
+    #def remove_edge(self):
 
     def reconfig(self, msg, node_list, frag_id):
         #node_list is a LIFO queue
@@ -208,6 +209,7 @@ class Node(threading.Thread):
 
                 msg = self.msg_mngr.package_msg('no_contention', e_id, None, None, None)
                 self.msg_mngr.send_msg(msg)
+
             # Detect a loop
             if self._id in node_list:
                 #need to send no-contension back 
@@ -255,10 +257,10 @@ class Node(threading.Thread):
         self.status = 'idle'
         print('node', self._id, 'finished')
         self.recd_reply = {}
-
-
-         
         
+        #PRINT THE NETWORK TOPOL0GY
+        #self.topology = ntwork_configuration
+         
 
 
 #msg_manager will send and package messages on behalf of the node

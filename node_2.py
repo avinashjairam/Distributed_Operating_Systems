@@ -24,6 +24,7 @@ class Node(threading.Thread):
 
         #network topology
         self.topology = ntwrk_cnfg
+        self.new_communication_graph = {}
 
         #state variables
         self.coord_so_far = None
@@ -39,6 +40,15 @@ class Node(threading.Thread):
         self.in_queue = incoming_queue
         self.msg_mngr = message_manager
         self.failed_node = None
+
+        self.condition = True
+
+    def get_id_from_port(self, p):
+        for _id in range(1,6):
+            if _id != self.failed_node:
+                if  self.topology[_id]['port'] == p:
+                     return _id
+
 
     #Defines the logic of the program
     def run(self):
@@ -63,6 +73,8 @@ class Node(threading.Thread):
                     #DO WE SIMPLY REMOVE IT FROM THE TOPOLOGY?
                     #NEED TO AVOID THE FAILED NODE
                     self.failed_node = msg['to_id']
+
+                    self.edges.remove(self.failed_node)
 
                     #send a reconfig message and start a reconfiguration
                     #NODE_LIST LIFO data structure
@@ -89,14 +101,14 @@ class Node(threading.Thread):
                     if sender_id in self.recd_reply.keys():
                         self.recd_reply[sender_id] = 'no_contention'
                     if not self.there_is_a_none(self.recd_reply):
-                        self.all_nodes_responde()
+                        self.all_nodes_responde(sender_id)
 
                 if msg['type'] == 'accepted':
                     sender_id = int(msg['from_id'])
                     if sender_id in self.recd_reply.keys():
                         self.recd_reply[sender_id] = 'accepted'
                     if not self.there_is_a_none(self.recd_reply):
-                        self.all_nodes_responde()
+                        self.all_nodes_responde(sender_id)
 
                 if msg['type'] == 'stop':
                     e_id = int(msg['from_id'])
@@ -113,12 +125,13 @@ class Node(threading.Thread):
                         if self.port_to_coord not in self.set_of_communication_ports():
                             if self.port_to_coord is not None:
                                 # Send a 'no_contention' msg through port_to_coord
-                                print('here e_id is', e_id )
+
+                                #changing no-contention message to end-node
                                 new_msg = self.msg_mngr.package_msg('no_contention', e_id, None, None, None)
                                 self.msg_mngr.send_msg(new_msg)
                             self.recd_reply[self.port_to_coord] = 'no_contention'
                             if not self.there_is_a_none(self.recd_reply):
-                                self.all_nodes_responde()
+                                self.all_nodes_responde(e_id)
                         else:
                             # Sending 'stop' message to the sender of the reconfig message
                             new_msg = self.msg_mngr.package_msg('stop', e_id, None, frag_id, None)
@@ -131,11 +144,6 @@ class Node(threading.Thread):
 
 
 
-
-
-
-
-
     def there_is_a_none(self, d):
         for item in d.items():
             if item is None:
@@ -143,8 +151,10 @@ class Node(threading.Thread):
         return False
 
     def assign_edge(self, to_id):
-        self.edges.append(to_id)
-
+        if to_id not in self.edges:
+            self.edges.append(to_id)
+        
+        
     #GET_PORT in the paper
     def set_of_communication_ports(self):
         ports = []
@@ -229,37 +239,47 @@ class Node(threading.Thread):
                     self.msg_mngr.send_msg(msg)
                 self.port_to_coord = e
 
+                #NEED A WAY TO GO FROM A PORT TO AN ID ASSOCIATED WITH THAT PORT!
 
-    def all_nodes_responde(self):
+
+    #NOTE you are assigning ports to edge list. Not Correct!
+    def all_nodes_responde(self,sender_id):
         responses = list(self.recd_reply.values())
         if 'accepted' in responses:
             if self.port_to_coord is not None:
                 # send a msg through port_to_coord
-                msg = self.msg_mngr.package_msg('accepted', None, None, None, None)
+                msg = self.msg_mngr.package_msg('accepted', sender_id, None, None, None)
                 self.msg_mngr.send_msg(msg)
             if self.port_to_coord not in self.set_of_communication_ports():
                 if self.port_to_coord is not None:
-                    self.assign_edge(self.port_to_coord)
+
+                    #NOTE INCORRECT
+                    self.assign_edge(sender_id)
 
         else:
             if (self.port_to_coord not in self.set_of_communication_ports()) and len(set(self.set_of_ports()).difference(set([self.port_to_coord])).intersection(set(self.set_of_communication_ports()))) != 0:
                 if self.port_to_coord is not None:
-                    self.assign_edge(self.port_to_coord)
+
+                    #NOTE INCORRECT
+                    self.assign_edge(sender_id)
                     # send a msg through port_to_coord
-                    msg = self.msg_mngr.package_msg('accepted', None, None, None, None)
+                    msg = self.msg_mngr.package_msg('accepted', sender_id, None, None, None)
                     self.msg_mngr.send_msg(msg)
             else:
                 if self.port_to_coord is not None:
                     # send a 'no_contention' msg through port_to_coord
-                    msg = self.msg_mngr.package_msg('no_contention', None, None, None, None)
+                    msg = self.msg_mngr.package_msg('no_contention', sender_id, None, None, None)
                     self.msg_mngr.send_msg(msg)
 
         self.status = 'idle'
         print('node', self._id, 'finished')
         self.recd_reply = {}
+
+        print(self.edges)
+        
+        #self.condition = False
         
         #PRINT THE NETWORK TOPOL0GY
-        #self.topology = ntwork_configuration
          
 
 
